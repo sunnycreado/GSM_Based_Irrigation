@@ -1,0 +1,261 @@
+#include <LiquidCrystal.h>
+LiquidCrystal LCD(10, 9, 5, 4, 3, 2);
+
+#include <SoftwareSerial.h>
+SoftwareSerial SIM900(7, 8);
+
+void Receive();
+void SoilCheck();
+void SendSMS();
+
+String PL1S, PL2S;
+String WPS1, WPS2;
+
+
+int motor1 = 11;
+int motor2 = 12;
+
+int SensorValue1, SensorValue2;
+char inByte = 0;
+String temp, mobno, massage;
+
+void setup()
+{
+  Serial.begin(9600);
+  delay(100);
+  SIM900.begin(9600);
+  delay(200);
+
+  pinMode(A0, INPUT);
+  pinMode(A1, INPUT);
+  LCD.begin(16, 2);
+  pinMode(motor1, OUTPUT);
+  pinMode(motor2, OUTPUT);
+  pinMode(13, OUTPUT);
+
+  delay(100);
+
+  LCD.setCursor(0, 0);
+  LCD.print("AUTOMATIC PLANT");
+  LCD.setCursor(0, 1);
+  LCD.print("WATERING SYSTEM");
+  delay(3000);
+  LCD.clear();
+
+  LCD.setCursor(0, 0);
+  LCD.print(" Atharva  Rohan ");
+  LCD.setCursor(0, 1);
+  LCD.print(" Sunny Esa Zaid ");
+  delay(3000);
+  LCD.clear();
+
+  LCD.setCursor(0, 0);
+  LCD.print("Plant1:");
+  LCD.setCursor(0, 1);
+  LCD.print("Plant2:");
+
+  
+  SIM900.print("ATE0\r");
+  delay(500);
+  SIM900.print("AT+CMGF=1\r");
+  delay(500);
+  SIM900.print("AT+CNMI=2,2,0,0,0\r");
+  delay(200);
+
+}
+
+void loop()
+{
+  SoilCheck();
+  Receive();
+  if (massage == "STATUS")
+  {
+    SendSMS();
+  }
+  else if (massage == "WP1=ON")
+  {
+    digitalWrite(motor1, HIGH);
+  }
+  else if (massage == "WP2=ON")
+  {
+    digitalWrite(motor2, HIGH);
+  }
+  else if (massage == "WP1=OF")
+  {
+    digitalWrite(motor1, LOW);
+  }
+  else if (massage == "WP2=OF")
+  {
+    digitalWrite(motor2, LOW);
+  }
+}
+
+void SoilCheck()
+{
+  SensorValue1 = analogRead(A0);
+  SensorValue2 = analogRead(A1);
+  delay(100);
+//  Serial.print("Sensor-1 : "); Serial.println(SensorValue1);
+//  Serial.print("Sensor-2 : "); Serial.println(SensorValue2);
+//  Serial.println("--------------------------");
+//  delay(500);
+
+  if (SensorValue1 >= 1000)
+  {
+//    Serial.println("not in Soil or DISCONNECTED");
+    LCD.setCursor(8, 0);
+    LCD.print("NO SOIL");
+    digitalWrite(motor1, LOW);
+    PL1S = "DISCONNECTED";
+    WPS1 = "OFF";
+  }
+  else if (SensorValue1 < 1000 && SensorValue1 >= 600)
+  {
+//    Serial.println("DRY");
+    LCD.setCursor(8, 0);
+    LCD.print("DRY    ");
+    digitalWrite(motor1, HIGH);
+    PL1S = "DRY";
+    WPS1 = "ON";
+  }
+  else if (SensorValue1 < 600 && SensorValue1 >= 370)
+  {
+//    Serial.println("HUMID");
+    LCD.setCursor(8, 0);
+    LCD.print("HUMID  ");
+    digitalWrite(motor1, LOW);
+    PL1S = "HUMID";
+    WPS1 = "OFF";
+  }
+  else if (SensorValue1 < 370)
+  {
+//    Serial.println("WATER");
+    LCD.setCursor(8, 0);
+    LCD.print("WATER  ");
+    digitalWrite(motor1, LOW);
+    PL1S = "WATER";
+    WPS1 = "OFF";
+  }
+
+  if (SensorValue2 >= 1000)
+  {
+//    Serial.println("not in Soil or DISCONNECTED");
+    LCD.setCursor(8, 1);
+    LCD.print("NO SOIL");
+    digitalWrite(motor2, LOW);
+    PL2S = "DISCONNECTED";
+    WPS2 = "OFF";
+  }
+  else if (SensorValue2 < 1000 && SensorValue2 >= 600)
+  {
+//    Serial.println("DRY");
+    LCD.setCursor(8, 1);
+    LCD.print("DRY    ");
+    digitalWrite(motor1, HIGH);
+    PL2S = "DRY";
+    WPS2 = "ON";
+  }
+  else if (SensorValue2 < 600 && SensorValue2 >= 370)
+  {
+//    Serial.println("HUMID");
+    LCD.setCursor(8, 1);
+    LCD.print("HUMID  ");
+    digitalWrite(motor2, LOW);
+    PL2S = "HUMID";
+    WPS2 = "OFF";
+  }
+  else if (SensorValue2 < 370)
+  {
+//    Serial.println("WATER");
+    LCD.setCursor(8, 1);
+    LCD.print("WATER  ");
+    digitalWrite(motor2, LOW);
+    PL2S = "WATER";
+    WPS2 = "OFF";
+  }
+}
+
+void Receive()
+{
+  if ( SIM900.available() )
+  {
+    inByte = SIM900.read();
+    if (inByte == '+')
+    {
+      delay(10);
+      inByte = SIM900.read();
+      if (inByte == 'C')
+      { delay(10);
+        inByte = SIM900.read();
+        if ( inByte == 'M')
+        { delay(10);
+          inByte = SIM900.read();
+          if ( inByte == 'T')
+          {
+            delay(50);
+            temp = SIM900.readString();
+            mobno = temp.substring(3, 16);
+            massage = temp.substring(45, 51);
+            LCD.setCursor(0, 0);
+            LCD.print(mobno);
+            LCD.setCursor(0, 1);
+            LCD.print(massage);
+            delay(3000);
+            LCD.clear();
+          }
+        }
+      }
+    }
+  }
+}
+
+void SendSMS()
+{
+  digitalWrite(13, HIGH);
+  
+  SIM900.println("AT\r");
+  delay(1000);
+  SIM900.println("ATE0\r");
+  delay(1000);
+  SIM900.println("AT+CMGF=1\r");
+  delay(2000);
+  SIM900.println("AT+CNMI=2,2,0,0,0\r");
+  delay(3000);
+  SIM900.print("AT+CMGS=\"");
+  SIM900.print(mobno);
+  SIM900.print("\"\r");
+  delay(1000);
+
+  //SIM900.print("    STATUS    \n\r");
+  SIM900.print(": Soil Moisture Status :");
+  SIM900.print(" \n");
+  SIM900.print("Plant_1 : ");
+  SIM900.print(PL1S);
+  SIM900.print(" \n");
+  delay(100);
+
+  SIM900.print("Plant_2 : ");
+  SIM900.print(PL2S);
+  SIM900.print(" \n");
+  delay(100);
+
+  SIM900.print("Water-Pump_1 : ");
+  SIM900.print(WPS1);
+  SIM900.print(" \n");
+  delay(100);
+
+  SIM900.print("Water-Pump_2 : ");
+  SIM900.print(WPS2);
+  SIM900.print(" \n");
+  delay(100);
+
+  SIM900.print("\x1A \r");
+  delay(100);
+
+  mobno = "";
+  massage = "";
+  temp = "";
+
+  digitalWrite(13, LOW);
+  delay(1000);
+}
